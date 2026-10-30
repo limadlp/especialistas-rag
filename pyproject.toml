@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "especialistas-rag"
+version = "0.1.0"
+description = "RAG local e experimento pareado com Gemma e Skinner"
+requires-python = ">=3.12"
+dependencies = ["fastapi", "uvicorn", "typer", "httpx", "pypdf", "cryptography>=3.1", "pypdfium2", "pillow", "numpy", "qdrant-client", "sentence-transformers", "rank-bm25", "pyyaml", "matplotlib", "psutil"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+especialistas-rag = "especialistas_rag.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

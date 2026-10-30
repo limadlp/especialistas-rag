@@ -1,0 +1,41 @@
+# Private working data and generated artifacts
+/data/
+/source_books/
+/experiments/
+/output/
+/build/
+/local/
+/pasta sem título/
+*.pdf
+*.epub
+*.sqlite*
+*.db
+*.jsonl
+*.npy
+*.npz
+*.safetensors
+*.gguf
+*.log
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Development environment and build outputs
+.venv/
+__pycache__/
+.pytest_cache/
+.DS_Store
+*.egg-info/
+/dist/
+/.coverage
+/PLANO.md
+
+# Corpus-specific scripts with embedded dataset or report content
+/scripts/build_questions.py
+/scripts/codex_review.py
+/scripts/deck.mjs
+/scripts/finish_deck.mjs
