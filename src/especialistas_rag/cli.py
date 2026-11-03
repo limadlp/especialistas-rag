@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 import subprocess
 import sys
 import httpx
@@ -77,15 +76,14 @@ def nei_gong_ingest():
 @app.command("nei-gong-serve")
 def nei_gong_serve(port: int = 8001):
     """Abre a plataforma local de especialistas (alias legado)."""
-    import uvicorn
-    uvicorn.run("especialistas_rag.nei_gong:app", host="127.0.0.1", port=port, workers=1)
+    platform_serve(port)
 
 
 @app.command("platform-serve")
 def platform_serve(port: int = 8001):
     """Abre a plataforma local de especialistas e bibliotecas."""
     import uvicorn
-    uvicorn.run("especialistas_rag.nei_gong:app", host="127.0.0.1", port=port, workers=1)
+    uvicorn.run("especialistas_rag.web.api:app", host="127.0.0.1", port=port, workers=1)
 
 
 @app.command()

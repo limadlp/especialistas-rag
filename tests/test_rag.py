@@ -1,11 +1,12 @@
 import pytest
 
-from especialistas_rag import nei_gong
+from especialistas_rag import rag
+from especialistas_rag.adapters import llm, lmstudio
 
 
 def test_rerank_parser_keeps_only_known_unique_candidates():
     available = {"C1": {"id": "one"}, "C2": {"id": "two"}}
-    selected, query = nei_gong.parse_rerank(
+    selected, query = rag.parse_rerank(
         '```json\n{"ids":["C2","C2","C99","C1"],"followup_query":"meditation attention"}\n```',
         available,
     )
@@ -15,7 +16,7 @@ def test_rerank_parser_keeps_only_known_unique_candidates():
 
 def test_rerank_parser_ignores_extra_json_after_first_result():
     available = {"C1": {"id": "one"}}
-    selected, query = nei_gong.parse_rerank(
+    selected, query = rag.parse_rerank(
         '{"ids":["C1"],"followup_query":""}\n{"note":"extra"}', available)
     assert selected == [available["C1"]]
     assert query == ""
@@ -23,8 +24,8 @@ def test_rerank_parser_ignores_extra_json_after_first_result():
 
 def test_rerank_falls_back_to_retrieved_passages_on_malformed_json(monkeypatch):
     candidates = [{"id": "one", "author": "A", "title": "Livro", "pdf_page": 1, "text": "Trecho"}]
-    monkeypatch.setattr(nei_gong, "lm_chat", lambda *args: '{invalid json}')
-    selected, followup = nei_gong.rerank("Pergunta", "modelo", candidates, True)
+    monkeypatch.setattr(llm, "complete", lambda *args: '{invalid json}')
+    selected, followup = rag.rerank("Pergunta", "modelo", candidates, True)
     assert selected == candidates
     assert followup == ""
 
@@ -53,9 +54,9 @@ def test_retrieve_runs_one_followup_and_reranks_combined_pool(monkeypatch):
         reranks.append((question, [x["id"] for x in candidates], allow_followup))
         return ([first[0]], "second angle") if allow_followup else ([second[1]], "")
 
-    monkeypatch.setattr(nei_gong, "library", lambda: LibraryStub())
-    monkeypatch.setattr(nei_gong, "rerank", rerank_stub)
-    selected, info = nei_gong.retrieve("Compare attention and breath", "model", [])
+    monkeypatch.setattr(rag, "library", lambda specialist_id: LibraryStub())
+    monkeypatch.setattr(rag, "rerank", rerank_stub)
+    selected, info = rag.retrieve("Compare attention and breath", "model", [])
     assert {x["id"] for x in selected} == {"a", "b", "c"}
     assert searches == [(["Compare attention and breath"], 24), (["second angle"], 16)]
     assert reranks[1][1] == ["a", "b", "c"]
@@ -69,7 +70,7 @@ def test_comparison_retains_buddhist_books():
     daoist = row("daoist-nei-gong")
     mind = row("the-mind-illuminated")
     jhanas = row("right-concentration")
-    selected = nei_gong.ensure_comparison_sources(
+    selected = rag.ensure_comparison_sources(
         "Compare a meditação budista com o Nei Gong", [daoist], [daoist, mind, jhanas], limit=8)
     assert {x["book_id"] for x in selected} == {"daoist-nei-gong", "the-mind-illuminated", "right-concentration"}
 
@@ -81,7 +82,7 @@ def test_comparison_keeps_both_buddhist_books_when_reranker_fills_limit():
             "author": "Culadasa", "pdf_page": 100}
     jhanas = {"id": "j", "book_id": "right-concentration", "title": "Right Concentration",
               "author": "Leigh Brasington", "pdf_page": 80}
-    result = nei_gong.ensure_comparison_sources(
+    result = rag.ensure_comparison_sources(
         "Compare meditação budista e Nei Gong", daoist, daoist + [mind, jhanas])
     assert len(result) == 8
     assert {"the-mind-illuminated", "right-concentration"}.issubset({x["book_id"] for x in result})
@@ -110,16 +111,18 @@ def test_lm_chat_reuses_loaded_instance_configuration(monkeypatch):
             sent.update(json)
             return Response()
 
-    monkeypatch.setattr(nei_gong.httpx, "Client", Client)
-    assert nei_gong.lm_chat("model", "system", "question", 100) == "Resposta"
+    monkeypatch.setattr(lmstudio.httpx, "Client", Client)
+    monkeypatch.setitem(lmstudio._loaded_instances, "model", "custom-loaded-instance")
+    assert lmstudio.complete("model", "system", "question", 100) == "Resposta"
+    assert sent["model"] == "custom-loaded-instance"
     assert "context_length" not in sent
 
 
 def test_model_reasoning_options_select_supported_value():
-    assert nei_gong.reasoning_setting({"reasoning_options": ["off", "on"]}, True) == "on"
-    assert nei_gong.reasoning_setting({"reasoning_options": ["off", "low", "medium"]}, True) == "medium"
-    assert nei_gong.reasoning_setting({"reasoning_options": ["off", "on"]}, False) == "off"
-    assert nei_gong.reasoning_setting({"reasoning_options": ["on"]}, False) is None
+    assert rag.reasoning_setting({"reasoning_options": ["off", "on"]}, True) == "on"
+    assert rag.reasoning_setting({"reasoning_options": ["off", "low", "medium"]}, True) == "medium"
+    assert rag.reasoning_setting({"reasoning_options": ["off", "on"]}, False) == "off"
+    assert rag.reasoning_setting({"reasoning_options": ["on"]}, False) is None
 
 
 def test_thinking_uses_supported_on_setting(monkeypatch):
@@ -145,12 +148,12 @@ def test_thinking_uses_supported_on_setting(monkeypatch):
             payloads.append(json)
             return Response()
 
-    monkeypatch.setattr(nei_gong.httpx, "Client", Client)
-    monkeypatch.setitem(nei_gong._reasoning_options, "thinking-model", ["on"])
-    nei_gong._no_reasoning_models.discard("thinking-model")
-    assert nei_gong.lm_chat("thinking-model", "Sistema", "Pergunta", 100, "on") == "Resposta"
+    monkeypatch.setattr(lmstudio.httpx, "Client", Client)
+    monkeypatch.setitem(lmstudio._reasoning_options, "thinking-model", ["on"])
+    lmstudio._no_reasoning_models.discard("thinking-model")
+    assert lmstudio.complete("thinking-model", "Sistema", "Pergunta", 100, "on") == "Resposta"
     assert payloads[0]["reasoning"] == "on"
-    nei_gong.lm_chat("thinking-model", "Sistema", "Pergunta", 100, "off")
+    lmstudio.complete("thinking-model", "Sistema", "Pergunta", 100, "off")
     assert "reasoning" not in payloads[1]
 
 
@@ -176,13 +179,13 @@ def test_lm_chat_explains_resource_guardrail(monkeypatch):
         def post(self, url, json):
             return Response()
 
-    monkeypatch.setattr(nei_gong.httpx, "Client", Client)
+    monkeypatch.setattr(lmstudio.httpx, "Client", Client)
     with pytest.raises(RuntimeError, match="falta de recursos"):
-        nei_gong.lm_chat("model", "system", "question", 100)
+        lmstudio.complete("model", "system", "question", 100)
 
 
 def test_lm_chat_retries_without_reasoning_when_model_rejects_it(monkeypatch):
-    monkeypatch.setattr(nei_gong, "_no_reasoning_models", set())
+    monkeypatch.setattr(lmstudio, "_no_reasoning_models", set())
     payloads = []
 
     class ErrorResponse:
@@ -213,9 +216,9 @@ def test_lm_chat_retries_without_reasoning_when_model_rejects_it(monkeypatch):
             payloads.append(dict(json))
             return ErrorResponse() if len(payloads) == 1 else OkResponse()
 
-    monkeypatch.setattr(nei_gong.httpx, "Client", Client)
+    monkeypatch.setattr(lmstudio.httpx, "Client", Client)
     model_id = "test-model"
-    assert nei_gong.lm_chat(model_id, "system", "question", 100) == "Resposta sem reasoning"
+    assert lmstudio.complete(model_id, "system", "question", 100) == "Resposta sem reasoning"
     assert payloads[0]["reasoning"] == "off"
     assert "reasoning" not in payloads[1]
-    assert model_id in nei_gong._no_reasoning_models
+    assert model_id in lmstudio._no_reasoning_models

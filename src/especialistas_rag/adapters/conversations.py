@@ -1,4 +1,4 @@
-"""Persistent chat history for the local Nei Gong agent."""
+"""SQLite adapter for per-specialist conversations."""
 from __future__ import annotations
 
 import json

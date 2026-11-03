@@ -8,7 +8,9 @@ import numpy as np
 from PIL import Image
 import pytest
 
-from especialistas_rag import epub, nei_gong, specialist_platform
+from especialistas_rag import epub, rag, retrieval
+from especialistas_rag.adapters import documents
+from especialistas_rag.adapters.library import Library
 
 
 def make_epub(path: Path, *, image_only=False):
@@ -43,14 +45,14 @@ class Encoder:
 def test_epub_metadata_spine_order_and_chunk_locations(tmp_path):
     path = tmp_path / 'book.epub'
     make_epub(path)
-    book = specialist_platform.book_metadata(path, 'book.epub', 'por')
+    book = documents.book_metadata(path, 'book.epub', 'por')
     assert (book['format'], book['title'], book['author'], book['sections']) == ('epub', 'Livro de teste', 'Autora Exemplo', 2)
-    rows = specialist_platform.chunks_for_book(path, book, Encoder())
+    rows = documents.chunks_for_book(path, book, Encoder())
     assert rows[0]['section_index'] == 1
     assert rows[0]['section_title'] == 'Segundo capítulo'
     assert 'memória' in rows[0]['text']
     assert 'pdf_page' not in rows[0]
-    assert 'Segundo capítulo' in nei_gong.source_label(rows[0])
+    assert 'Segundo capítulo' in rag.source_label(rows[0])
     assert rows[-1]['section_title'] == 'Primeiro capítulo'
 
 
@@ -68,10 +70,10 @@ def test_rejects_zip_without_epub_package(tmp_path):
     with ZipFile(path, 'w') as archive:
         archive.writestr('other.txt', 'not a book')
     with pytest.raises(ValueError, match='EPUB'):
-        specialist_platform.book_metadata(path, 'bad.epub', 'por')
+        documents.book_metadata(path, 'bad.epub', 'por')
 
 
-def test_hybrid_search_accepts_epub_section_without_pdf_page():
+def test_hybrid_search_accepts_epub_section_without_pdf_page(monkeypatch):
     row = {'id': 'epub-s0001-c000', 'book_id': 'epub', 'title': 'Livro', 'author': 'Autora',
            'section_index': 1, 'section_title': 'Capítulo um', 'chunk_index': 0,
            'text': 'Atenção e prática em um capítulo do livro.'}
@@ -84,14 +86,14 @@ def test_hybrid_search_accepts_epub_section_without_pdf_page():
         def encode(self, *args, **kwargs):
             return np.array([1.0, 0.0])
 
-    library = nei_gong.Library.__new__(nei_gong.Library)
+    library = Library.__new__(Library)
     library.rows = [row]
     library.by_id = {row['id']: row}
     library.page_limits = {'epub': 0}
     library.books = [{'id': 'epub', 'format': 'epub', 'sections': 1}]
     library.bm25 = None
     library.client = Client()
-    library.encoder = EncoderStub()
+    monkeypatch.setattr(retrieval, "load_encoder", EncoderStub)
     library.collection = 'books'
     library.lock = threading.Lock()
     assert library.search(['atenção'], limit=1) == [row]

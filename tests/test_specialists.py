@@ -1,15 +1,17 @@
 from fastapi.testclient import TestClient
 
-from especialistas_rag import nei_gong, specialist_platform
+from especialistas_rag import rag
+from especialistas_rag.adapters import documents, llm, specialists
+from especialistas_rag.web import api
 
 
 def test_specialists_have_isolated_conversations(tmp_path, monkeypatch):
-    monkeypatch.setattr(specialist_platform, "REGISTRY", tmp_path / "registry.json")
-    monkeypatch.setattr(specialist_platform, "DATA_ROOT", tmp_path / "specialists")
-    monkeypatch.setattr(nei_gong, "models", lambda: [{"id": "local-model"}])
-    monkeypatch.setattr(nei_gong, "retrieve", lambda question, model, history, identity: ([], {"search_rounds": 1}))
-    monkeypatch.setattr(nei_gong, "complete", lambda question, model, sources, history, identity, thinking: "Resposta local")
-    client = TestClient(nei_gong.app)
+    monkeypatch.setattr(specialists, "REGISTRY", tmp_path / "registry.json")
+    monkeypatch.setattr(specialists, "DATA_ROOT", tmp_path / "specialists")
+    monkeypatch.setattr(llm, "models", lambda: [{"id": "local-model"}])
+    monkeypatch.setattr(rag, "retrieve", lambda question, model, history, identity: ([], {"search_rounds": 1}))
+    monkeypatch.setattr(rag, "complete", lambda question, model, sources, history, identity, thinking: "Resposta local")
+    client = TestClient(api.app)
 
     alpha = client.post("/api/specialists", json={"name": "Alpha", "description": "Primeiro"}).json()
     beta = client.post("/api/specialists", json={"name": "Beta", "description": "Segundo"}).json()
@@ -22,16 +24,16 @@ def test_specialists_have_isolated_conversations(tmp_path, monkeypatch):
 
 
 def test_registry_rejects_unsupported_ocr_language(tmp_path, monkeypatch):
-    monkeypatch.setattr(specialist_platform, "REGISTRY", tmp_path / "registry.json")
-    client = TestClient(nei_gong.app)
+    monkeypatch.setattr(specialists, "REGISTRY", tmp_path / "registry.json")
+    client = TestClient(api.app)
     response = client.post("/api/specialists", json={"name": "Teste", "ocr_language": "xyz"})
     assert response.status_code == 422
     assert [entry["id"] for entry in client.get("/api/specialists").json()["specialists"]] == ["nei-gong", "psychology"]
 
 
 def test_system_prompt_can_be_saved_and_restored(tmp_path, monkeypatch):
-    monkeypatch.setattr(specialist_platform, "REGISTRY", tmp_path / "registry.json")
-    client = TestClient(nei_gong.app)
+    monkeypatch.setattr(specialists, "REGISTRY", tmp_path / "registry.json")
+    client = TestClient(api.app)
     original = client.get("/api/specialists/nei-gong/prompt").json()
     assert original["custom"] is False
     saved = client.put("/api/specialists/nei-gong/prompt", json={"system_prompt": "Use os livros."}).json()
@@ -45,14 +47,14 @@ def test_password_protected_pdf_upload(tmp_path, monkeypatch):
     from urllib.parse import quote
     from pypdf import PdfWriter
 
-    monkeypatch.setattr(specialist_platform, "REGISTRY", tmp_path / "registry.json")
-    monkeypatch.setattr(specialist_platform, "DATA_ROOT", tmp_path / "specialists")
+    monkeypatch.setattr(specialists, "REGISTRY", tmp_path / "registry.json")
+    monkeypatch.setattr(specialists, "DATA_ROOT", tmp_path / "specialists")
     writer = PdfWriter()
     writer.add_blank_page(width=100, height=100)
     writer.encrypt("senha ç", algorithm="AES-256")
     data = BytesIO()
     writer.write(data)
-    client = TestClient(nei_gong.app)
+    client = TestClient(api.app)
     headers = {"content-type": "application/pdf", "x-filename": "livro.pdf"}
     response = client.post("/api/specialists/nei-gong/books", content=data.getvalue(), headers=headers)
     assert response.status_code == 422
@@ -63,7 +65,7 @@ def test_password_protected_pdf_upload(tmp_path, monkeypatch):
         def add_book(self, path, book, progress, password):
             captured.update(password=password, book=book)
             return book
-    monkeypatch.setattr(nei_gong, "library", lambda identity: Library())
+    monkeypatch.setattr(api, "library", lambda identity: Library())
     response = client.post("/api/specialists/nei-gong/books", content=data.getvalue(), headers=headers)
     assert response.status_code == 202
     import time
@@ -93,7 +95,7 @@ def test_protected_pdf_ocr_uses_password(tmp_path, monkeypatch):
         seen.append(kwargs.get("password"))
         return real_document(*args, **kwargs)
     monkeypatch.setattr(pypdfium2, "PdfDocument", document)
-    monkeypatch.setattr(specialist_platform, "ocr_image", lambda image, language: "texto")
-    pages, count = specialist_platform.extract_pages(path, "por", password="secret")
+    monkeypatch.setattr(documents, "ocr_image", lambda image, language: "texto")
+    pages, count = documents.extract_pages(path, "por", password="secret")
     assert count == 1 and pages[0]["text"] == "texto"
     assert seen == ["secret"]

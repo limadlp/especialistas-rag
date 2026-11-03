@@ -35,6 +35,7 @@ def test_api_rejects_unknown_model_and_excessive_history():
 
 def test_reasoning_is_rejected_even_if_message_present(monkeypatch):
     from especialistas_rag import core
+    from especialistas_rag.adapters import lmstudio
     class Response:
         def raise_for_status(self): pass
         def json(self): return {"output":[{"type":"message","content":"x"}],"stats":{"reasoning_output_tokens":3}}
@@ -46,5 +47,5 @@ def test_reasoning_is_rejected_even_if_message_present(monkeypatch):
             assert kwargs['json']['reasoning'] == 'off'
             assert kwargs['json']['store'] is False
             return Response()
-    monkeypatch.setattr(core.httpx,"Client",Client)
+    monkeypatch.setattr(lmstudio.httpx,"Client",Client)
     with pytest.raises(RuntimeError,match="Thinking"): core.answer("x","pequeno")

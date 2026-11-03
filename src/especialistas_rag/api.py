@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from . import core
+from .adapters import lmstudio
 
 
 class Query(BaseModel):
@@ -51,7 +52,7 @@ def retriever():
 @app.get("/health")
 def health():
     try:
-        response = httpx.get(core.LM_URL + "/api/v1/models", timeout=2, trust_env=False)
+        response = httpx.get(core.LM_URL + "/api/v1/models", headers=lmstudio.headers(), timeout=2, trust_env=False)
         reachable = response.is_success
     except httpx.HTTPError:
         reachable = False

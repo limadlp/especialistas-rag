@@ -2,20 +2,22 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import threading
 import time
-import unicodedata
 import uuid
 
-import httpx
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[2]
-DATA = Path(os.getenv("TAC_DATA", ROOT / "data"))
-LM_URL = os.getenv("TAC_LM_URL", "http://127.0.0.1:1234")
+from . import settings
+from .adapters import lmstudio
+from .files import read_jsonl, write_jsonl
+from .retrieval import lexical, load_encoder
+
+ROOT = settings.ROOT
+DATA = settings.DATA
+LM_URL = settings.LMSTUDIO_URL
 MODELS = {
     "pequeno": "google/gemma-4-e4b",
     "medio": "google/gemma-4-12b",
@@ -32,36 +34,10 @@ SYSTEM = (
     "passagens, responda com seu conhecimento, sem inventar referências. "
     "Uma vinheta breve não estabelece por si só a função de um comportamento."
 )
-STOP = set("a o as os um uma uns umas de da do das dos em no na nos nas e ou que qual quais como para por com se ao aos à às é são foi ser sobre segundo explique livro skinner comportamento humano ciência ciencia autor texto ele ela isso esse essa uma pode".split())
-
-
-def lexical(text: str) -> list[str]:
-    text = "".join(c for c in unicodedata.normalize("NFKD", text.lower()) if not unicodedata.combining(c))
-    return [w for w in re.findall(r"\w+", text) if len(w) > 1 and w not in STOP]
-
-
-def read_jsonl(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-
-
-def write_jsonl(path: Path, rows):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in rows), encoding="utf-8")
 
 
 def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def load_encoder():
-    # A missing model raises locally; ordinary execution never downloads weights.
-    os.environ["HF_HUB_OFFLINE"] = "1"
-    os.environ["TRANSFORMERS_OFFLINE"] = "1"
-    os.environ["TOKENIZERS_PARALLELISM"] = "false"
-    import torch
-    torch.set_num_threads(2)
-    from sentence_transformers import SentenceTransformer
-    return SentenceTransformer(str(DATA / "models/multilingual-e5-small"), local_files_only=True, device="cpu")
 
 
 def chunks_from_pages(pages, tokenizer, size=320, overlap=50):
@@ -185,7 +161,7 @@ def answer(question: str, model: str, sources=None, history=None, max_tokens=320
                "top_p": .95, "top_k": 64, "max_output_tokens": max_tokens,
                "context_length": 8192, "store": False}
     start = time.perf_counter()
-    with httpx.Client(timeout=httpx.Timeout(600, connect=5), trust_env=False) as client:
+    with lmstudio.client() as client:
         response = client.post(LM_URL + "/api/v1/chat", json=payload)
         response.raise_for_status()
         raw = response.json()
