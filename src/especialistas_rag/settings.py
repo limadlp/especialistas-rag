@@ -15,3 +15,5 @@ NEI_GONG_CHAT_DB = Path(os.getenv("TAC_NEI_GONG_CHAT_DB", DATA / "nei_gong" / "c
 
 LMSTUDIO_URL = os.getenv("TAC_LM_URL", "http://127.0.0.1:1234").rstrip("/")
 LMSTUDIO_API_TOKEN = os.getenv("LMSTUDIO_API_TOKEN", "").strip()
+GOOGLE_API_KEY = (os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip()
+GOOGLE_MODEL = os.getenv("TAC_GOOGLE_MODEL", "").strip().removeprefix("models/")
