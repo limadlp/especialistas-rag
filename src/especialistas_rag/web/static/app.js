@@ -15,7 +15,8 @@ function updateThinkingControl() {
   const control = $('thinking');
   control.disabled = !canEnable || !canDisable;
   control.checked = canEnable && (!canDisable || localStorage.getItem(thinkingKey(model.id)) === 'true');
-  $('thinking-note').textContent = !model ? 'Inicie o LM Studio para detectar o suporte a thinking.' :
+  $('thinking-note').textContent = !model ? 'Carregue um modelo no LM Studio ou selecione um modelo disponível.' :
+    model.provider === 'gemini' ? 'O Gemini recebe a pergunta, o contexto da conversa e os trechos dos livros usados na resposta.' :
     !canEnable ? 'Este modelo não oferece ajuste de thinking.' :
     !canDisable ? 'Este modelo mantém thinking ativo.' :
     allowed.includes('on') ? 'O modelo alterna entre on e off.' :
@@ -72,25 +73,25 @@ function showWelcome() {
 async function loadModels() {
   const select = $('model');
   const prior = select.value;
-  select.innerHTML = '<option>Carregando modelos…</option>';
+  select.innerHTML = '<option value="">Carregando modelos…</option>';
   try {
     const data = await fetchJSON('/api/models');
     availableModels = data.models;
-    select.replaceChildren();
+    select.replaceChildren(new Option('Selecione um modelo', ''));
     for (const model of data.models) {
       const option = document.createElement('option');
       option.value = model.id;
-      option.textContent = model.label + (model.loaded ? ' · carregado' : '');
+      option.textContent = model.label + (model.provider === 'gemini' ? ' · Google Gemini' : model.loaded ? ' · carregado' : '');
       select.append(option);
     }
     if (!data.models.length) select.innerHTML = '<option value="">Nenhum modelo de chat detectado</option>';
-    else select.value = data.models.some(x => x.id === prior) ? prior : (data.models.find(x => x.loaded) || data.models[0]).id;
+    else select.value = data.models.some(x => x.id === prior) ? prior : (data.default_model || '');
     updateThinkingControl();
   } catch (error) {
     availableModels = [];
-    select.innerHTML = '<option value="">LM Studio indisponível</option>';
+    select.replaceChildren(new Option('Nenhum modelo disponível', ''));
     updateThinkingControl();
-    $('status').textContent = error.message;
+    $('thinking-note').textContent = error.message;
   }
 }
 
@@ -118,7 +119,7 @@ async function loadBooks() {
       node.append(title, meta, remove);
       container.append(node);
     }
-    $('status').textContent = data.books.length ? `${data.books.length} ${data.books.length === 1 ? 'obra pronta' : 'obras prontas'} para consulta` : 'Biblioteca vazia. Adicione um PDF.';
+    $('status').textContent = data.books.length ? `${data.books.length} ${data.books.length === 1 ? 'obra pronta' : 'obras prontas'} para consulta` : 'Biblioteca vazia. Adicione um PDF ou EPUB.';
   } catch (error) { $('status').textContent = error.message; }
 }
 
@@ -253,7 +254,10 @@ async function openConversation(id) {
     localStorage.setItem(conversationKey(specialistId), id);
     $('messages').replaceChildren();
     for (const message of conversation.messages) addMessage(message.role, message.content, message.sources, message.retrieval, false);
-    if (Array.from($('model').options).some(x => x.value === conversation.model)) $('model').value = conversation.model;
+    if (availableModels.some(model => model.id === conversation.model && model.provider === 'lmstudio' && model.loaded)) {
+      $('model').value = conversation.model;
+      updateThinkingControl();
+    }
     await loadConversations();
     $('messages').scrollTop = $('messages').scrollHeight;
   } catch (error) { if (specialistId === activeSpecialistId) $('status').textContent = `Não foi possível abrir a conversa: ${error.message}`; }
@@ -261,7 +265,13 @@ async function openConversation(id) {
 
 async function send(question) {
   if (busy || !question.trim()) return;
-  if (!$('model').value) { addMessage('assistant', 'Selecione um modelo do LM Studio antes de enviar.'); return; }
+  if (!$('model').value) {
+    $('thinking-note').textContent = 'Selecione um modelo antes de enviar.';
+    $('sidebar-toggle').setAttribute('aria-expanded', 'true');
+    $('model').focus();
+    return;
+  }
+  $('question').value = '';
   busy = true;
   $('send').disabled = true;
   $('specialist').disabled = true;
@@ -282,8 +292,19 @@ async function send(question) {
   finally { busy = false; $('send').disabled = false; $('specialist').disabled = false; $('question').focus(); }
 }
 
-$('composer').addEventListener('submit', event => { event.preventDefault(); const question = $('question').value; $('question').value = ''; send(question); });
+$('composer').addEventListener('submit', event => { event.preventDefault(); send($('question').value); });
 $('question').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('composer').requestSubmit(); } });
+$('sidebar-toggle').onclick = event => {
+  const toggle = event.currentTarget;
+  toggle.setAttribute('aria-expanded', String(toggle.getAttribute('aria-expanded') === 'false'));
+};
+document.addEventListener('keydown', event => {
+  const toggle = $('sidebar-toggle');
+  if (event.key === 'Escape' && !document.querySelector('dialog[open]') && toggle.getAttribute('aria-expanded') === 'true') {
+    toggle.setAttribute('aria-expanded', 'false');
+    if (toggle.offsetWidth) toggle.focus();
+  }
+});
 $('refresh').onclick = loadModels;
 $('model').onchange = updateThinkingControl;
 $('thinking').onchange = () => localStorage.setItem(thinkingKey($('model').value), String($('thinking').checked));
@@ -370,7 +391,7 @@ $('batch-form').onsubmit = async event => {
     if (!Array.isArray(questions) || !questions.length || questions.some(q => typeof q !== 'string' || !q.trim() || q.trim().length > 4000)) {
       throw new Error('Use um objeto com "perguntas": uma lista não vazia de textos, cada um com até 4000 caracteres.');
     }
-    if (!$('model').value) throw new Error('Selecione um modelo do LM Studio antes de começar.');
+    if (!$('model').value) throw new Error('Selecione um modelo antes de começar.');
   } catch (error) { $('batch-status').textContent = `JSON inválido ou dados incompletos: ${error.message}`; return; }
   const specialist = activeSpecialistId, model = $('model').value, thinking = $('thinking').checked;
   batchResults = {especialista: specialist, modelo: model, resultados: []};
