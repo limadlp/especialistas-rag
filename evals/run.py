@@ -15,7 +15,7 @@ from .cases import CASES, DOCUMENTS
 
 CUTOFFS = (1, 3, 5)
 ABSTENTION = "SEM EVIDÊNCIA"
-CITATION = re.compile(r"\[(S\d+)\]")
+CITATION = re.compile(r"\[((?:S\d+)(?:\s*,\s*S\d+)*)\]")
 SYSTEM = (
     "Responda em português, de forma direta. Se houver fontes, fundamente a resposta nelas "
     "e use os códigos de citação fornecidos, como [S1]. Se a informação for insuficiente, "
@@ -82,16 +82,20 @@ def generation_metrics(case, rag, model: dict, identity: str) -> dict:
     sources = [{**item, "citation": f"S{number}"} for number, item in enumerate(selected, 1)]
     answer = rag.complete(case.question, model, sources, [], identity)
     if not case.evidence:
-        return {"baseline_abstained": baseline.strip().upper() == ABSTENTION,
-                "rag_abstained": answer.strip().upper() == ABSTENTION}
-    cited = set(CITATION.findall(answer))
+        return {"baseline_abstained": baseline.strip().rstrip(".!").upper() == ABSTENTION,
+                "rag_abstained": answer.strip().rstrip(".!").upper() == ABSTENTION}
+    cited = {code.strip() for group in CITATION.findall(answer) for code in group.split(",")}
     valid = {item["citation"] for item in sources}
     cited_passages = {address(item) for item in sources if item["citation"] in cited}
+    rag_match = score_answer(answer, case.answers)
+    valid_citations = bool(cited) and cited <= valid
+    cites_all = set(case.evidence) <= cited_passages
     return {
         "baseline_match": score_answer(baseline, case.answers),
-        "rag_match": score_answer(answer, case.answers),
-        "rag_valid_citations": bool(cited) and cited <= valid,
-        "rag_cites_all_evidence": set(case.evidence) <= cited_passages,
+        "rag_match": rag_match,
+        "rag_valid_citations": valid_citations,
+        "rag_cites_all_evidence": cites_all,
+        "rag_match_with_all_citations": rag_match and valid_citations and cites_all,
     }
 
 

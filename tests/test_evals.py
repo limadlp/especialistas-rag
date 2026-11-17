@@ -41,7 +41,7 @@ def test_numeric_variants_do_not_match_substrings():
 def test_generation_requires_all_expected_citations_and_checks_abstention():
     class Rag:
         def complete(self, question, model, sources, history, identity):
-            return "42, 48, 30 e 36 [S1]" if sources and question.startswith("Quais faixas") else "SEM EVIDÊNCIA"
+            return "42, 48, 30 e 36 [S1]" if sources and question.startswith("Quais faixas") else "SEM EVIDÊNCIA."
 
         def retrieve(self, *args):
             return [{"book_id": "papel", "section_index": 1}, {"book_id": "fotos", "section_index": 1}], {}
@@ -52,4 +52,12 @@ def test_generation_requires_all_expected_citations_and_checks_abstention():
     result = generation_metrics(multi, Rag(), model, "test")
     assert result["rag_match"] and result["rag_valid_citations"]
     assert not result["rag_cites_all_evidence"]
+    assert not result["rag_match_with_all_citations"]
     assert generation_metrics(missing, Rag(), model, "test")["rag_abstained"]
+
+    class GroupedCitations(Rag):
+        def complete(self, question, model, sources, history, identity):
+            return "42, 48, 30 e 36 [S1, S2]" if sources else "SEM EVIDÊNCIA."
+
+    grouped = generation_metrics(multi, GroupedCitations(), model, "test")
+    assert grouped["rag_match_with_all_citations"]

@@ -116,6 +116,18 @@ python -m evals.run > /tmp/cedro-v2.json
 
 O avaliador importa os EPUBs em um diretório temporário e devolve as posições por pergunta, métricas por tipo e o SHA-256 dos pesos usados. Com um modelo carregado no LM Studio, `python -m evals.run --generate` também compara respostas com e sem RAG, checa citações e mede abstenções nas seis perguntas sem evidência. A checagem de respostas usa variantes de texto aceitas e pode perder paráfrases bem formuladas.
 
+### Avaliação de respostas com Gemma 4 E4B
+
+Uma execução local com `google/gemma-4-e4b` no LM Studio comparou o mesmo modelo nas 30 perguntas, com e sem acesso aos trechos. Os resultados abaixo foram conferidos nas respostas e nas fontes citadas.
+
+| Métrica | Sem RAG | Com RAG |
+| --- | ---: | ---: |
+| Respostas corretas nas perguntas respondíveis | 0/24 | 24/24 |
+| Respostas corretas que citaram todos os trechos exigidos | — | 24/24 |
+| Abstenções corretas nas perguntas sem evidência | 6/6 | 5/6 |
+
+Sem acesso ao corpus fictício, o modelo se absteve nas 30 perguntas. Com RAG, no único erro de abstenção, citou o dia em que a contestação é analisada ao ser perguntado sobre o prazo para contestar. Esse resultado descreve uma execução no Cedro v2.
+
 ## Dados locais
 
 O Git ignora `.env`, livros, uploads, conversas, pesos, índices e resultados. A árvore começa apenas com o código e as avaliações que geram suas próprias entradas. Os diretórios `data/`, `source_books/`, `experiments/`, `build/` e `output/` contêm material local, incluindo o corpus e os artefatos do experimento original. O app preserva o formato das bibliotecas e conversas existentes.

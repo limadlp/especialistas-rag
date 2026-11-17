@@ -116,6 +116,18 @@ python -m evals.run > /tmp/cedro-v2.json
 
 The evaluator imports EPUBs into a temporary directory and returns per-question rankings, metrics by question type, and the SHA-256 of the embedding weights. With a model loaded in LM Studio, `python -m evals.run --generate` also compares answers with and without RAG, checks citations, and measures abstention on the six unanswerable questions. Its answer checker uses accepted text variants and can miss valid paraphrases.
 
+### Answer evaluation with Gemma 4 E4B
+
+One local run with `google/gemma-4-e4b` in LM Studio compared the same model on all 30 questions with and without access to retrieved passages. The answers and their cited sources were reviewed.
+
+| Metric | Without RAG | With RAG |
+| --- | ---: | ---: |
+| Correct answers on answerable questions | 0/24 | 24/24 |
+| Correct answers citing all required passages | — | 24/24 |
+| Correct abstentions on unanswerable questions | 6/6 | 5/6 |
+
+Without access to the fictional corpus, the model abstained on all 30 questions. In the only RAG abstention failure, it cited the day an appeal is reviewed when asked for the deadline to file one. These results describe one Cedro v2 run.
+
 ## Local data
 
 Git ignores `.env`, books, uploads, conversations, model weights, indexes, and generated results. A fresh checkout includes the code and evaluations that generate their own inputs. The `data/`, `source_books/`, `experiments/`, `build/`, and `output/` directories hold local data, including the original experiment corpus and outputs. Existing libraries and conversations keep their storage format.
