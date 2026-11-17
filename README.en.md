@@ -95,15 +95,26 @@ sequenceDiagram
 
 ## Evaluation
 
+**Cedro v2** uses **30 Portuguese questions** over **24 passages in eight fictional documents**. There are six questions of each type: direct, paraphrased, confusable, requiring two passages, and unanswered by the corpus. The reference labels identify exact EPUB sections.
+
+### Hybrid retrieval results
+
+Local run with multilingual-e5-small, Qdrant, and BM25. The metrics below cover the **24 answerable questions** and measure retrieval before LLM reranking.
+
+| Cutoff | At least one correct passage | All required passages |
+| --- | ---: | ---: |
+| Top 1 | 20/24 (83.3%) | 15/24 (62.5%) |
+| Top 3 | 23/24 (95.8%) | 22/24 (91.7%) |
+| Top 5 | 24/24 (100%) | 23/24 (95.8%) |
+
+**MRR@5 was 0.897**. The top five contained both required passages for **5/6** two-passage questions. For the remaining question, which compared the rainfall thresholds in the pilot and current rules, retrieval surfaced only the current rule. These results measure regressions on a controlled corpus.
+
 ```bash
 python -m pytest -q
-python -m evals.run
-python -m evals.run --generate
+python -m evals.run > /tmp/cedro-v2.json
 ```
 
-The evaluator creates four fictional documents in a temporary directory, ingests them through the EPUB importer, and measures **Hit@1**, **Hit@3**, and **MRR@3** on six questions with reference sources. The optional `--generate` run compares the loaded LM Studio model with and without RAG. The JSON report measures reference answer matches, citation validity, and whether the answer cites the expected document. This is a small regression suite, and text matching can miss valid paraphrases.
-
-In one local run with Gemma, the expected source ranked first for all six questions (MRR@3 of 1.00). With RAG, all six answers matched the reference answer and cited the expected document. Without RAG, none matched the reference answer.
+The evaluator imports EPUBs into a temporary directory and returns per-question rankings, metrics by question type, and the SHA-256 of the embedding weights. With a model loaded in LM Studio, `python -m evals.run --generate` also compares answers with and without RAG, checks citations, and measures abstention on the six unanswerable questions. Its answer checker uses accepted text variants and can miss valid paraphrases.
 
 ## Local data
 

@@ -95,15 +95,26 @@ sequenceDiagram
 
 ## Avaliação
 
+O benchmark **Cedro v2** usa **30 perguntas em português** sobre **24 trechos em oito documentos fictícios**. São seis perguntas de cada tipo: diretas, paráfrases, perguntas com trechos parecidos que podem confundir a busca, perguntas que exigem dois trechos e perguntas sem resposta no corpus. O gabarito identifica a seção exata do EPUB.
+
+### Resultado da busca híbrida
+
+Execução local com multilingual-e5-small, Qdrant e BM25. As métricas abaixo são calculadas nas **24 perguntas respondíveis**, antes da reordenação pelo LLM.
+
+| Posição | Pelo menos um trecho correto | Todos os trechos exigidos |
+| --- | ---: | ---: |
+| Top 1 | 20/24 (83,3%) | 15/24 (62,5%) |
+| Top 3 | 23/24 (95,8%) | 22/24 (91,7%) |
+| Top 5 | 24/24 (100%) | 23/24 (95,8%) |
+
+O **MRR@5 foi 0,897**. No top 5, a busca recuperou as duas evidências em **5/6** perguntas que exigiam dois trechos. Na pergunta restante, sobre o limite de chuva no piloto e na norma vigente, só apareceu a norma vigente. Os resultados medem regressões nesse corpus controlado.
+
 ```bash
 python -m pytest -q
-python -m evals.run
-python -m evals.run --generate
+python -m evals.run > /tmp/cedro-v2.json
 ```
 
-O avaliador gera quatro documentos fictícios em um diretório temporário, passa pelo importador de EPUB e mede **Hit@1**, **Hit@3** e **MRR@3** em seis perguntas com fonte esperada. A opção `--generate` usa o LM Studio carregado para comparar respostas com e sem RAG. O JSON apresenta a taxa de correspondência com respostas esperadas e métricas de citações válidas e da obra esperada. São verificações de regressão sobre um corpus pequeno, com correspondência textual sujeita a paráfrases.
-
-Em uma execução local com Gemma, a fonte esperada ficou em primeiro lugar nas seis perguntas (MRR@3 de 1,00). Com RAG, as seis respostas corresponderam ao gabarito e citaram a obra esperada. Sem RAG, nenhuma correspondeu ao gabarito.
+O avaliador importa os EPUBs em um diretório temporário e devolve as posições por pergunta, métricas por tipo e o SHA-256 dos pesos usados. Com um modelo carregado no LM Studio, `python -m evals.run --generate` também compara respostas com e sem RAG, checa citações e mede abstenções nas seis perguntas sem evidência. A checagem de respostas usa variantes de texto aceitas e pode perder paráfrases bem formuladas.
 
 ## Dados locais
 
