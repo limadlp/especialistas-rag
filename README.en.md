@@ -116,17 +116,17 @@ python -m evals.run > /tmp/cedro-v2.json
 
 The evaluator imports EPUBs into a temporary directory and returns per-question rankings, metrics by question type, and the SHA-256 of the embedding weights. With a model loaded in LM Studio, `python -m evals.run --generate` also compares answers with and without RAG, checks citations, and measures abstention on the six unanswerable questions. Its answer checker uses accepted text variants and can miss valid paraphrases.
 
-### Answer evaluation with Gemma 4 E4B
+### Answer evaluation with Gemma 4
 
-One local run with `google/gemma-4-e4b` in LM Studio compared the same model on all 30 questions with and without access to retrieved passages. The answers and their cited sources were reviewed.
+One run per model in LM Studio on the same 30 questions, with and without access to retrieved passages. The runs used `google/gemma-4-e4b` and `google/gemma-4-26b-a4b-qat`, both with an 8,192-token context. Responses and their cited passages were reviewed.
 
-| Metric | Without RAG | With RAG |
-| --- | ---: | ---: |
-| Correct answers on answerable questions | 0/24 | 24/24 |
-| Correct answers citing all required passages | — | 24/24 |
-| Correct abstentions on unanswerable questions | 6/6 | 5/6 |
+| Metric | E4B without RAG | E4B with RAG | 26B without RAG | 26B with RAG |
+| --- | ---: | ---: | ---: | ---: |
+| Correct answers on answerable questions | 0/24 | 24/24 | 0/24 | 24/24 |
+| Correct answers citing all required passages | — | 24/24 | — | 24/24 |
+| Correct abstentions on unanswerable questions | 6/6 | 5/6 | 6/6 | 6/6 |
 
-Without access to the fictional corpus, the model abstained on all 30 questions. In the only RAG abstention failure, it cited the day an appeal is reviewed when asked for the deadline to file one. These results describe one Cedro v2 run.
+Without access to the fictional corpus, both models abstained on all 30 questions. With RAG, the E4B cited the day an appeal is reviewed when asked for the filing deadline. The 26B abstained on that question and kept all 24 correct answers with their required citations. The difference was one question out of six unanswerable cases.
 
 ## Local data
 

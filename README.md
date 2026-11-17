@@ -116,17 +116,17 @@ python -m evals.run > /tmp/cedro-v2.json
 
 O avaliador importa os EPUBs em um diretório temporário e devolve as posições por pergunta, métricas por tipo e o SHA-256 dos pesos usados. Com um modelo carregado no LM Studio, `python -m evals.run --generate` também compara respostas com e sem RAG, checa citações e mede abstenções nas seis perguntas sem evidência. A checagem de respostas usa variantes de texto aceitas e pode perder paráfrases bem formuladas.
 
-### Avaliação de respostas com Gemma 4 E4B
+### Avaliação de respostas com Gemma 4
 
-Uma execução local com `google/gemma-4-e4b` no LM Studio comparou o mesmo modelo nas 30 perguntas, com e sem acesso aos trechos. Os resultados abaixo foram conferidos nas respostas e nas fontes citadas.
+Uma execução por modelo no LM Studio, nas mesmas 30 perguntas, com e sem acesso aos trechos. Foram usados `google/gemma-4-e4b` e `google/gemma-4-26b-a4b-qat`, ambos com contexto de 8.192 tokens. Conferimos as respostas e os trechos citados.
 
-| Métrica | Sem RAG | Com RAG |
-| --- | ---: | ---: |
-| Respostas corretas nas perguntas respondíveis | 0/24 | 24/24 |
-| Respostas corretas que citaram todos os trechos exigidos | — | 24/24 |
-| Abstenções corretas nas perguntas sem evidência | 6/6 | 5/6 |
+| Métrica | E4B sem RAG | E4B com RAG | 26B sem RAG | 26B com RAG |
+| --- | ---: | ---: | ---: | ---: |
+| Respostas corretas nas perguntas respondíveis | 0/24 | 24/24 | 0/24 | 24/24 |
+| Respostas corretas que citaram todos os trechos exigidos | — | 24/24 | — | 24/24 |
+| Abstenções corretas nas perguntas sem evidência | 6/6 | 5/6 | 6/6 | 6/6 |
 
-Sem acesso ao corpus fictício, o modelo se absteve nas 30 perguntas. Com RAG, no único erro de abstenção, citou o dia em que a contestação é analisada ao ser perguntado sobre o prazo para contestar. Esse resultado descreve uma execução no Cedro v2.
+Sem acesso ao corpus fictício, os dois modelos se abstiveram nas 30 perguntas. Com RAG, o E4B citou o dia da análise da contestação quando a pergunta pedia o prazo para contestar. O 26B se absteve nesse caso e manteve os 24 acertos com todas as citações exigidas. A diferença foi de uma pergunta em seis casos sem evidência.
 
 ## Dados locais
 
